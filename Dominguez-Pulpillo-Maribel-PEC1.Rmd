@@ -1,0 +1,17 @@
+---
+title: "PEC1"
+author: "María Isabel Domínguez Pulpillo"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Seleccionar Dataset
+
+Para la realización de la PEC 1 se ha bajado el Dataset DataVAlues_S013.csv del repositorio https://github.com/nutrimetabolomics/metaboData/blob/main/Datasets/2018-MetabotypingPaper/DataValues_S013.csv
+
+## Creación de un repositorio en git Hub
+

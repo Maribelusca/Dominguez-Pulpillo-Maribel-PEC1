@@ -1,1 +1,2 @@
 ## README
+Repositorio para la PEC1 de Análisis de Datos Ómicos
