@@ -2,7 +2,11 @@
 title: "PEC1"
 author: "María Isabel Domínguez Pulpillo"
 date: "`r Sys.Date()`"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
+bibliography: referencias.bib
+csl: apa.csl.txt
 ---
 
 ```{r setup, include=FALSE}
@@ -11,7 +15,68 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Seleccionar Dataset
 
-Para la realización de la PEC 1 se ha bajado el Dataset DataVAlues_S013.csv del repositorio https://github.com/nutrimetabolomics/metaboData/blob/main/Datasets/2018-MetabotypingPaper/DataValues_S013.csv
+Para la realización de la PEC 1 se ha bajado el Dataset DataVAlues_S013.csv del repositorio <https://github.com/nutrimetabolomics/metaboData/blob/main/Datasets/2018-MetabotypingPaper/DataValues_S013.csv>
 
 ## Creación de un repositorio en git Hub
 
+En primer lugar hay que disponer de una cuenta en la web github.com. GitGub es una plataforma de desarrollo colaborativo para alojar proyectos utilizando el sistema de control de versiones Git. [@eswiki:163109382]
+
+La cuenta GitHub asignada para el repositorio de la PEC 1 es: <https://github.com/Maribelusca>
+
+## Contenedor para los datos y megadatos
+
+En primer lugar se debe instalar el Bioconductor "BiocManager" el cual contiene la librería SummarizedExperiment, esta librería sirve para leer los datos de expresión y metadatos de una base de datos de tipo matricial. Las filas representan normalmente los rangos genómicos de interés y las columnas representan las muestras. La clase SummarizedExperiment se utiliza para almacenar matrices rectangulares de resultados experimentales, que se generan comúnmente en experimentos de secuenciación y microarrays. Cada objeto de SummarizedExperiment almacena observaciones de una o más muestras, junto con metadatos adicionales que describen tanto las observaciones (características) como las muestras (fenotipos). [@SummarizedExperiment]
+
+```{r}
+library(SummarizedExperiment)
+
+data <- read.csv("DataValues_S013.csv", row.names = 1) 
+
+measurements <- data[, 6:ncol(data)]
+dim(measurements)
+measurements_matrix <- as.matrix(measurements)
+dim(measurements_matrix)
+nrow(measurements_matrix)
+```
+
+Hay un data frame de 39 observaciones y 695 variables. Sugiere que cada observación corresponde a una muestra y que las variables son mediciones. Al observar los datos se ven como hay una columna de Group clasificada en 1 y 2 que corresponde 1: tubular y 2: by pass
+
+```{r}
+feature_info <- DataFrame(FeatureID = colnames(measurements_matrix))
+nrow(feature_info)  # Esto debe ser 690
+
+sample_info <- DataFrame(SampleID = rownames(measurements_matrix), Group = data$Group)
+nrow(sample_info)  # Esto debe ser 39
+
+se <- SummarizedExperiment(
+  assays = SimpleList(counts = measurements_matrix),
+  rowData = sample_info,
+  colData = feature_info
+)
+se
+```
+
+```{r}
+summary(se)
+dim(se)
+# Boxplot de las medidas
+boxplot(assay(se), las=2, main="Boxplot de Medidas", ylab="Valores", xlab="Características")
+# Estadísticas descriptivas
+summary(assay(se))
+library(ggplot2)
+# Convertir a un data frame para ggplot
+se_df <- as.data.frame(assay(se))
+se_df$Group <- as.factor(sample_info$Group)
+
+# Boxplot por grupo
+ggplot(se_df, aes(x = Group, y = MEDDM_T0)) + 
+  geom_boxplot() +
+  theme_minimal() +
+  labs(title = "Distribución de MEDDM_T0 por Grupo", x = "Grupo", y = "MEDDM_T0")
+
+
+```
+
+
+
+## Referencias
