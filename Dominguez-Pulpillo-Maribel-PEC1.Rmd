@@ -4,7 +4,10 @@ author: "María Isabel Domínguez Pulpillo"
 date: "`r Sys.Date()`"
 output:
   pdf_document: default
-  html_document: default
+  output:
+  html_document:
+      toc: true
+      toc_float: true
 bibliography: referencias.bib
 csl: apa.csl.txt
 ---
@@ -15,7 +18,7 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## Seleccionar Dataset
 
-Para la realización de la PEC 1 se ha bajado el Dataset DataVAlues_S013.csv del repositorio <https://github.com/nutrimetabolomics/metaboData/blob/main/Datasets/2018-MetabotypingPaper/DataValues_S013.csv>
+Para la realización de la PEC 1 se ha bajado el Dataset DataValues_S013.csv del repositorio <https://github.com/nutrimetabolomics/metaboData/blob/main/Datasets/2018-MetabotypingPaper/DataValues_S013.csv>
 
 ## Creación de un repositorio en git Hub
 
@@ -23,60 +26,165 @@ En primer lugar hay que disponer de una cuenta en la web github.com. GitGub es u
 
 La cuenta GitHub asignada para el repositorio de la PEC 1 es: <https://github.com/Maribelusca>
 
-## Contenedor para los datos y megadatos
+## Creación de un contenedor para los datos y megadatos
 
-En primer lugar se debe instalar el Bioconductor "BiocManager" el cual contiene la librería SummarizedExperiment, esta librería sirve para leer los datos de expresión y metadatos de una base de datos de tipo matricial. Las filas representan normalmente los rangos genómicos de interés y las columnas representan las muestras. La clase SummarizedExperiment se utiliza para almacenar matrices rectangulares de resultados experimentales, que se generan comúnmente en experimentos de secuenciación y microarrays. Cada objeto de SummarizedExperiment almacena observaciones de una o más muestras, junto con metadatos adicionales que describen tanto las observaciones (características) como las muestras (fenotipos). [@SummarizedExperiment]
+Se debe instalar el Bioconductor "BiocManager" el cual contiene la librería SummarizedExperiment, esta librería sirve para leer los datos de expresión y metadatos de una base de datos de tipo matricial. Las filas representan normalmente los rangos genómicos de interés y las columnas representan las muestras. La clase SummarizedExperiment se utiliza para almacenar matrices rectangulares de resultados experimentales, que se generan comúnmente en experimentos de secuenciación y microarrays. Cada objeto de SummarizedExperiment almacena observaciones de una o más muestras, junto con metadatos adicionales que describen tanto las observaciones (características) como las muestras (fenotipos). [@SummarizedExperiment]
 
 ```{r}
 library(SummarizedExperiment)
 
 data <- read.csv("DataValues_S013.csv", row.names = 1) 
 
-measurements <- data[, 6:ncol(data)]
-dim(measurements)
-measurements_matrix <- as.matrix(measurements)
-dim(measurements_matrix)
-nrow(measurements_matrix)
+dim(data)
+
+#colnames(data)
 ```
 
-Hay un data frame de 39 observaciones y 695 variables. Sugiere que cada observación corresponde a una muestra y que las variables son mediciones. Al observar los datos se ven como hay una columna de Group clasificada en 1 y 2 que corresponde 1: tubular y 2: by pass
+Hay un data frame de 39 observaciones y 695 variables. Sugiere que cada observación corresponde a una muestra y que las variables son mediciones. Al observar los datos se muestra como hay varias columnas que corresponden a información sobre las muestras. Estas columnas corresponden a las covariantes que son las que proporcionan información sobre los experimentos.
+
+Para trabajar con la clase SummarizedExperiment se debe convertir la base de datos en una matriz. Los datos que deben estar en forma matricial son los correspondientes a las mediciones experimentales que corresponde a las columnas a partir de la 6 en adelante.
+
+Asimismo la estructura de un Expression set debe ser tantas filas como medidas haya y tantas columnas como muestras, por lo que en este caso hay que transponer la matriz para cambiar el orden de filas y columnas.
 
 ```{r}
-feature_info <- DataFrame(FeatureID = colnames(measurements_matrix))
-nrow(feature_info)  # Esto debe ser 690
+expression_matrix <- as.matrix(data[, 6:ncol(data)])
+dim(expression_matrix)
+expression_matrix <- t(expression_matrix)
+dim(expression_matrix)
 
-sample_info <- DataFrame(SampleID = rownames(measurements_matrix), Group = data$Group)
-nrow(sample_info)  # Esto debe ser 39
+```
 
+Las columnas de la 1 a la 5 corresponde a información experimental
+
+```{r}
+sample_info <- DataFrame(data[, 1:5])
+dim(sample_info)
+#head(sample_info)
+
+
+
+```
+
+Todo lo que está en forma matricial corresponde a las mediciones experimentales
+
+```{r}
+feature_info <- DataFrame(FeatureID = rownames(expression_matrix))
+dim(feature_info)
+#head(feature_info)
+```
+
+## Creación del objeto `SummarizedExperiment`
+
+```{r}
 se <- SummarizedExperiment(
-  assays = SimpleList(counts = measurements_matrix),
-  rowData = sample_info,
-  colData = feature_info
+  assays = SimpleList(counts = expression_matrix),
+  rowData = feature_info,
+  colData = sample_info
 )
 se
+
+# assays contiene la matriz de expression
+head(assays(se))
+# colData almacena el contenido de las covariantes
+colData(se)
+
+# rowData almacena el contenido experimental
+head(rowData(se))
+dim(rowData(se))
+```
+
+## Exploración del dataset
+
+Verificar cuántos datos faltantes hay.
+
+```{r}
+num_na_total <- sum(is.na(expression_matrix))
+
+cat("El número total de NA es",num_na_total)
+```
+
+Debido al alto número de datos faltantes, se sustituye por 0. Considero esta opción a pesar de que me falta información sobre el estudio, pero para seguir con la exploración del dataset tomo esta decisión. En un caso real, podría no ser la mejor solución, pero no dispongo de toda la información.
+
+```{r}
+# Reemplazar todos los NA por 0 en la matriz de expresión
+expression_matrix_clean <- expression_matrix
+expression_matrix_clean[is.na(expression_matrix_clean)] <- 0
+
 ```
 
 ```{r}
-summary(se)
-dim(se)
-# Boxplot de las medidas
-boxplot(assay(se), las=2, main="Boxplot de Medidas", ylab="Valores", xlab="Características")
-# Estadísticas descriptivas
-summary(assay(se))
-library(ggplot2)
-# Convertir a un data frame para ggplot
-se_df <- as.data.frame(assay(se))
-se_df$Group <- as.factor(sample_info$Group)
+pcs <- prcomp(expression_matrix_clean)
 
-# Boxplot por grupo
-ggplot(se_df, aes(x = Group, y = MEDDM_T0)) + 
-  geom_boxplot() +
-  theme_minimal() +
-  labs(title = "Distribución de MEDDM_T0 por Grupo", x = "Grupo", y = "MEDDM_T0")
+# Nombres de los componentes principales
+names(pcs)
+
+# Gráfico de barras de las desviaciones estándar
+barplot(pcs$sdev)
+
+summary(pcs)
+```
+
+El PC1 explica la mayor parte de la variabilidad mucho más que los siguientes componentes, con un 81.78%. Junto con PC2 explicarían el 87.42% que sería un porcentaje importante y no anyado demasiada complejidad.
+
+```{r}
+
+plot(pcs$rotation[,1], pcs$rotation[,2],
+     main="Representación de los dos primeros componentes principales",
+     xlab="PC 1",
+     ylab="PC 2",
+     pch=19, col=as.factor(sample_info$Group),
+     cex=1.5) 
+
+
+text(pcs$rotation[,1], pcs$rotation[,2], 
+     labels=sample_info$Group, 
+     cex=0.8, 
+     pos=3, 
+     col="black") 
+grid()
+
+```
+
+Cálculo y visualización de la variabilidad de las mediciones experimentales
+
+```{r}
+# Extraer la matriz de expresión
+expression_matrix <- assays(se)$counts
+
+# Extraer los nombres de las características
+expression_names <- rowData(se)$FeatureID
+
+# Calcular la desviación estándar para cada medida
+variab <- apply(expression_matrix, 1, sd)
+
+# Ordenar los genes de mayor a menor variabilidad
+ordered_expression <- expression_names[order(variab, decreasing = TRUE)]
+
+# Mostrar los primeros seis genes más variables y sus desviaciones estándar
+top_seis <- head(ordered_expression)
+top_seis
+top_variability <- head(variab[order(variab, decreasing = TRUE)])
+data.frame(Medida = top_seis, Variability = top_variability)
+
+# Las 6 medidas con más variabilidad
+head(top_variability)
 
 
 ```
 
+## Reposición de los datos en github
 
+Para subir archivos a un repositorio github, se debe vincular un proyecto de RStudio a una cuenta en github. Para ello se crea un repositorio en la github. Para este proyecto cree el repositorio Dominguez-Pulpillo-Maribel-PEC1 que se encuentra en <https://github.com/Maribelusca/Dominguez-Pulpillo-Maribel-PEC1.git>
 
+En el terminal de RStudio se debe copiar las líneas de comando siguientes:
+
+git remote add origin <https://github.com/Maribelusca/Dominguez-Pulpillo-Maribel-PEC1.git> git branch -M main git push -u origin main
+
+Con estos comandos se vinculan ambas aplicaciones.
+
+Una vez se van generando datos, se pueden subir yendo a Git como se indica en la imagen
+
+![](images/Screenshot 2024-10-26 162422.png)
+
+Se seleccionan los archivos que se quieren subir y se hace clic en Push
 ## Referencias
